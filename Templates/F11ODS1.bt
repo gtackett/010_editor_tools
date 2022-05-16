@@ -1,0 +1,24 @@
+//------------------------------------------------
+//--- 010 Editor v10.0.2 Binary Template
+//
+//      File: FIles-11 ODS-1 volume
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: 
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+typedef byte BLOCK[512];
+
+typedef struct {
+    unsigned int H_IBSZ <comment="Size of index file bitmap, in blocks">;
+    unsigned long H_IBLB <comment="LBN of index file bitmap">;
+    unsigned int H_FMAX <comment="Max. number of files">;
+    unsigned int H_SBCL <comment="Storage bitmap cluster factor">;
+    unsigned int H_DVTY <comment="Disk device type. Unused, should be 0">;
+} HOMEBLOCK;
+
+BLOCK bootBlock;
+HOMEBLOCK homeBlock;

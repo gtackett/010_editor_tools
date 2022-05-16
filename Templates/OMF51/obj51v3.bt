@@ -1,0 +1,71 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File: OMF51.bt
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: *.aobj *.alib
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+LittleEndian();
+#include <OMF51_Types.inc>
+
+//local OMF51_FILETYPE lclFileType = ReadByte();
+//
+//Assert(
+//    lclFileType == ft_ObjFile || fileType == ft_LibFile),
+//    "This template can't be used with this type of file" );
+
+//switch(lclFileType) {
+//    case ft_ObjFile:
+//        RunTemplate("obj51v3.bt");
+//        break;
+//
+//    case ft_LibFile:
+//        RunTemplate("lib51v3.bt";
+//        break
+//}
+
+        local OMF51_FILETYPE       fileType;
+typedef struct {
+//    local FILETYPE fileType = ft_Empty;
+    if ( FileSize() == 0)
+    {
+        Warning("File is empty.\n");
+    }
+    else
+    {
+        OMF51_RECORDTYPE     recordType;
+
+        if (recordType == rt_Module_HDR || recordType == rt_LIB_Header) {
+            uint16          recordLength <format=hex>;
+            uhbyte          recordData[recordLength-1];
+            uhbyte          checksum;
+            fileType = recordType;
+        }
+        else {
+              local int fileType = recordType;
+//            StatusMessage("%02X is not a valid OMF51 file header byte\n", fileType);
+        }
+    }
+} FileTypeDescriptor_ <name="File type", read=ReadFileTypeDescriptor, format=hex>;
+
+FileTypeDescriptor_ x;
+
+Printf("type %04x\n", fileType);
+
+string ReadFileTypeDescriptor(FileTypeDescriptor_ &x)
+{
+    if (FileSize() == 0) return "Empty file!";
+    x.recordType = ReadUByte();
+    //Assert(x.recordType == rt_LIB_Header || x.recordType == rt_Module_HDR, Str("Invalid record type 0x%02X!", x.recordType));
+    fileType = x.recordType;
+    return (x.recordType == ft_LibFile 
+                ? "Library file"
+                : fileType == ft_ObjFile
+                     ? "Object file"
+                     : Str("Unknown file type value: 0x%02.2X", x.fileType));
+}

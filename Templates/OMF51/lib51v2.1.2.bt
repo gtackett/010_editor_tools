@@ -1,0 +1,376 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File:   lib51v2.1.2.bt
+//   Authors:   Galen Tackett
+//   Version:   2.1.2
+//   Purpose:   Explore OMF51 library file format
+//  Category:   Object File
+// File Mask:   *.lib
+//  ID Bytes:   2C 07
+//   History:   V2.1.2   glt    Report on name lengths == or > 40, but process them anyway.
+//                              Added a lot of other stuff as well, like a description at the top level, module open/close consistency checking, ...
+//              V2.1.1   glt    Added check for Keil-specific record variants,
+//                              with messages when such occur.
+//              V2.1
+//              V2.0     glt     Re-created some earlier V2 fixes that were subsequently
+//                              "bugged" by hasty "improvements", and tidying up a bit.
+//
+//              V2       glt     A damaged, "bugged" and nonworking version (see above)
+//------------------------------------------------
+#define NO_KEIL 1
+//#undef NO_KEIL
+#include <OMF51.h>
+#include <UtilityFunctions.inc>
+
+local int test;
+
+typedef ubyte UHBYTE <format=hex>;
+
+typedef ushort BLKNUMBER <format=hex>;
+typedef ushort BYTENUMBER <format=hex>;
+
+typedef struct {
+    string  mdName;
+    ubyte   mdIsOpen;
+    BLKNUMBER mdStartBlock;               // Starting "block number" (128 bytes per block) of module names record
+    BYTENUMBER  mdStartByte;                // byte offset, from first byte of starting block, to first byte of module names record
+    uint        mdStartRecord, mdEndRecord; // both are currently not needed
+    ubyte       mdTrnId <format=hex>;
+} LCLMODULE;
+
+local RECORDTYPE    thisRecordType = 0;
+local UHBYTE        thisChecksumResult;
+
+local ushort    thisRecordLength;
+local byte      abortFlag               = false;
+local UHBYTE    checksumResult;
+local uint      lclRecordNumber, lclmoduleCount, lclModNameOffset;
+local string    optionalRecordDesc = "";
+local string    mismatchString; 
+
+
+local LCLMODULE lclModuleTable[10000], nullModule;
+
+local uint      moduleDepth = 0;
+local string    modules;
+local int32     moduleTableIndex = -1;
+local uint      lclIndex;
+local uint      lclModuleCount, lclModuleIndex;
+
+local string lclLibraryDesc;
+local RECORDTYPE baseRecordType;
+
+#ifndef NO_KEIL
+local uint keilFlag;
+local const string KeilString = " (Keil)";
+#else
+local const uint keilFlag = false;
+local const string KeilString = "";
+#endif // NO_KEIL
+
+string recordTypeName(RECORDTYPE);
+
+typedef struct {
+    BitfieldDisablePadding();
+    OMF51_RECORDTYPE recordType
+    ushort moduleCount;
+    BLKNUMBER startBlock;
+    BYTENUMBER byteNumber;
+    BitfieldEnablePadding();
+    //lclModuleCount = moduleCount;
+    lclLibraryDesc = 
+            Str("Module count: %u. Module names record starts at byte %u (0x%04X)", 
+                lclModuleCount,
+                lclModuleTable[0].mdStartByte,
+                lclModuleTable[0].mdStartByte );
+} LIBHEADER /*<read=_LIBHEADERdesc>*/;
+
+int checkNameLength(ubyte n, int64 start)
+{
+    local int good =  (n > 0 && n <= maxExpectedNameLength) ? true : false;
+    local string message = (n == 0) 
+                    ? "Zero length name"
+                    : (n > maxExpectedNameLength)
+                        ? Str( "Name length (%u) exceeds maximum expected (%u)", n, maxExpectedNameLength)
+                        : "";
+    //myAssert( good, message + Str(" at record %u, file offset 0x%X", lclRecordNumber, start ) );
+    return good;
+}
+
+typedef struct {
+    BitfieldDisablePadding();
+    ubyte   nameLength;
+    char name[nameLength];
+    TRNID   trnId;
+    UHBYTE    pad :8;
+    lclModuleTable[++moduleTableIndex].mdName = name;
+    lclModuleTable[moduleTableIndex].mdIsOpen = true;
+    lclModuleTable[moduleTableIndex].mdStartRecord = lclRecordNumber;
+    lclModuleTable[moduleTableIndex].mdTrnId = trnId;
+    BitfieldEnablePadding();
+} MODULEHEADER <read=ReadMODULEHEADER>;
+
+string ReadMODULEHEADER( MODULEHEADER &x )
+{
+    local int good = checkNameLength( x.nameLength, startof(x.nameLength) );
+    return Str( "Name=\"%s\", TRN_ID=0x%2X", (good ? x.name : "<null>"), x.trnId);
+}
+
+typedef struct {
+    BitfieldDisablePadding();
+    ubyte   nameLength;
+    char name[nameLength];
+        
+    uint    pad:16;
+    UHBYTE  regMsk;
+    uint  pad2  :8;
+    lclModuleTable[moduleTableIndex].mdIsOpen = false;
+    BitfieldEnablePadding();
+} MODULEENDdata <read=ReadMODULEENDdata>;
+
+string ReadMODULEENDdata( MODULEENDdata &x )
+{
+    local int goodNameLen = checkNameLength( x.nameLength, startof(x.nameLength) );
+
+    local string mismatchString = (0 != Strcmp(x.name, lclModuleTable[moduleTableIndex].mdName ))
+                        ? "" 
+                        : Str( " (%s != %s) ", x.name, lclModuleTable[moduleTableIndex].mdName);
+    checkNameLength(x.nameLength, startof(x.nameLength));
+    myAssert(mismatchString == "", mismatchString);
+    if (x.nameLength > 0)
+        return Str("Name=\"%s\"%s, Region mask 0x%02X", x.name, mismatchString, x.regMsk);
+    else
+        return Str("MODULEEND record has zero-length name at %X", FTell());
+}
+
+typedef struct {
+    UHBYTE  data[parentof(this).recLength - 1];
+} SEGMENTDEFdata <read=ReadSEGMENTDEFdata>;
+
+string ReadSEGMENTDEFdata( SEGMENTDEFdata &x)
+{
+    return Str("Segment records are not parsed yet. Record length %u bytes.", thisRecordLength);
+}
+
+typedef struct {
+    ubyte   defType;
+    UHBYTE  data[parentof(this).recLength - sizeof(defType) - 1];
+} DEBUGITEMSdata <read=ReadDEBUGITEMSdata>;
+
+string ReadDEBUGITEMSdata( DEBUGITEMSdata &x)
+{
+    return Str("Debug items, length %u bytes, Def type 0x%02X",  thisRecordLength, x.defType);
+}
+
+typedef struct {
+    UHBYTE  data[recLength - 1];
+} NOTIMPLEMENTEDdata <read=ReadNOTIMPLEMENTEDdata>;
+
+string ReadNOTIMPLEMENTEDdata( NOTIMPLEMENTEDdata &x)
+{
+    //optionalRecordDesc = Str("Unimplemented record type 0x%02X, length %u bytes", thisRecordType, thisRecordLength);
+    //Printf(optionalRecordDesc+"\n");
+    //myAssert(1==0, optionalRecordDesc);
+    local string typeName;
+    return Str("Unimplemented %srecord type 0x%02X (\"%s\"), length %u bytes",
+
+                keilFlag ? KeilString : "",
+                thisRecordType,
+                recordTypeName(baseRecordType), thisRecordLength);
+}
+  
+typedef struct {
+    StatusMessage("");
+    if (recLength > 1)
+        UHBYTE  data[recLength - 1];
+} UNDOCRECORDdata <read=ReadUNDOCRECORDdata>;
+
+string ReadUNDOCRECORDdata( UNDOCRECORDdata &x)
+{
+    //optionalRecordDesc = Str("Undocumented record type 0x%02X, length %u bytes", pthisRecordType, thisRecordLength);
+    //Printf(optionalRecordDesc+"\n");
+    //myAssert(1==0, optionalRecordDesc);
+    return Str("Undocumented record type %02X, %u bytes", thisRecordType, thisRecordLength); // Str("Undocumented record type 0x%02X, length %u bytes",thisRecordType, thisRecordLength);
+}
+
+
+uint compute_fileoffset(BLKNUMBER b, BYTENUMBER bytenum)
+{
+    return 128 * b + bytenum;
+}
+//#define USE_READLIBRARY 1
+//
+// 
+typedef struct LIBRARY {
+        LIBHEADER libhdr;
+    // local uint lclLibModuleCount;
+    for (lclRecordNumber = 1; !FEof() && !abortFlag; lclRecordNumber++) {
+        RECORDTYPE  recType <format=hex>;
+        thisRecordType  = baseRecordType = recType;
+#ifndef NO_KEIL
+        baseRecordType = recType & 0xfe;
+        keilFlag        = recType & 1;
+#endif
+        ushort      recLength;
+        myAssert( recLength > 0, Str("Zero-length record, of type 0x%02X at file offset %u (0x%X)", recType, FTell(), FTell() ) );
+        thisRecordLength = recLength;
+        // struct recordData {
+            switch(thisRecordType & 0xfe) {
+                case rt_LIB_Header:
+                    myAssert(startof(recType) == 0, Str("Record %u, library header at offset 0x%04X instead of 0", lclRecordNumber, startof(recType)) );
+                    LIBHEADER libhdr;
+                    lclModNameOffset = compute_fileoffset(libhdr.startBlock, libhdr.byteNumber);
+                    break;
+        
+                case rt_Module_HDR:
+                    ++lclModuleIndex;
+                    if (++moduleDepth > 1)
+                        warningWithDelay(
+                            Str(15, "Nested modules are not supported, at record %u. Continuing anyway",
+                            lclRecordNumber) );
+                    MODULEHEADER modhdr;
+                    moduleDepth--;
+                    break;
+        
+                case rt_Module_END:
+                    MODULEENDdata modend;
+                    break;
+    
+                case rt_Segment_DEF:
+                    Printf("Segment Definitions are only partially implemented, at record %u\n", lclRecordNumber);
+                    SEGMENTDEFdata segdef;
+                    break;
+     
+                case rt_Debug_Item:
+                    Printf("Debug Items are only partially implemented, at record %u\n", lclRecordNumber);
+                    DEBUGITEMSdata dbgitems;
+                    break;
+    
+                case rt_LIB_ModName:
+                    if (startof(recType) != lclModNameOffset)
+                        Printf("Library header offset to first Module Names 0x%04X != 0x%04X (start of this record.\n",
+                            lclModNameOffset, startof(recType) );
+
+                case rt_Content:
+                case rt_Fixup:
+                case rt_Scope_DEF:
+                case rt_Public_DEF:
+                case rt_External_DEF:
+                case rt_LIB_ModLocs:
+                case rt_LIB_DICTNRY:
+#ifndef NO_KEIL
+                case rt_Content_Keil:
+                case rt_Fixup_Keil:
+                case rt_Segment_DEF:
+                case rt_Segment_DEF_Keil:
+                case rt_Public_DEF_keil:
+                case rt_External_DEF_keil:
+#endif
+                if (!keilFlag) {
+                    Printf("Not yet implemented record type 0x%02x (\"%s\"), at record %u\n", thisRecordType, recordTypeName(thisRecordType), lclRecordNumber);
+                } else {
+                    Printf("Keil record type 0x%02x (\"%s\"), undocumented, not yet implemented, at record %u\n", thisRecordType, recordTypeName(thisRecordType), lclRecordNumber);
+                }
+                    NOTIMPLEMENTEDdata notimpl;
+                    break;
+        
+                default:
+                    UNDOCRECORDdata nodoc;
+                    Printf("Undocumented record type 0x%02x, at record %u\n", thisRecordType, lclRecordNumber);
+                    //abortFlag = true;
+                    break;       
+            } // end switch
+#ifdef PRE_PAD_ADJUST // This appears to be an unnecessary precaution
+#define ADJUST 1
+            if ( sizeof(x) < (recLength-ADJUST) )
+            {
+    
+                Printf("Extra %u bytes of data at end of record\n", (recLength - ADJUST) - sizeof(x));
+                UHBYTE extraData[(recLength -ADJUST) - sizeof(x)];
+            }
+#endif
+
+            // The record checksum byte should contain the 2's complement of the 8 bit sum of everything before it, starting at the record type.
+            // So when the byte sum of the entire record _including the checksum_ should be zero.
+            //
+            UHBYTE  recordCheckSum; 
+            checksumResult = Checksum(CHECKSUM_BYTE, startof(recType), recLength + sizeof(recLength) + sizeof(recType));
+            myAssert(checksumResult == 0, Str("Invalid checksum %02x in record %u, from file offset 0x%02X, %u (%02X) bytes", checksumResult, lclRecordNumber, startof(recType), recLength, recLength));
+            if ( optionalRecordDesc != "" )
+            {
+                Printf(optionalRecordDesc + "\n");
+                optionalRecordDesc = "";
+            }
+        // } // end struct
+    } // end for
+    local uint lclModuleMax = (lclModuleIndex < lclModuleCount) ? lclModuleIndex : lclModuleCount;
+    if (lclModuleIndex != lclModuleCount)
+        Printf("Module headers counted (%u) != library header module count (%u).\nOnly the first %u modules can be listed below.\n",
+                  lcmModuleIndex, lclModuleCount, lclModuleMax);
+    for (lclIndex = 0; lclIndex < lclModuleMax; lclIndex++)
+        Printf("Module %u, name %s\n", lclIndex, lclModuleTable[lclIndex].mdName);
+} _LIBRARY <read=readLIBRARY>;
+
+string readLIBRARY( _LIBRARY &x) {
+    return Str(
+        "OMF51 library, %u module%s, module names record location byte 0x%04X: block %u (0x%02X), byte %u (0x%04X)",
+        x.moduleCount, (x.moduleCount == 1) ? "" : "s",
+        compute_fileoffset(x.startBlock, x.byteNumber),
+        x.startBlock,  x.startBlock,
+        x.byteNumber,x.byteNumber );
+}
+
+_LIBRARY library;
+
+string recordTypeName(RECORDTYPE rt)
+{
+    local string baseTypeString;
+    local RECORDTYPE rtype = rt & xfe;
+    local RECORDTYPE baseRecordType = rt & 0xfe; 
+    switch( rt ) {
+            case rt_Content:
+                baseTypeString = "rt_Content";
+                break;
+    
+            case rt_Fixup:
+                baseTypeString = "rt_Fixup";
+                break;
+    
+            case rt_Scope_DEF:
+                baseTypeString = "rt_Scope_DEF";
+                break;
+    
+            case rt_Public_DEF:
+                baseTypeString = "rt_Public_DEF";
+                break;
+    
+            case rt_External_DEF:
+                baseTypeString = "rt_External_DEF";
+                break;
+    
+            case rt_LIB_ModLocs:
+                baseTypeString = "rt_LIB_ModLocs";
+                break;
+    
+            case rt_LIB_ModName:
+                baseTypeString = "rt_LIB_ModName";
+                break;
+            case rt_LIB_DICTNRY:
+                baseTypeString = "rt_LIB_DICTNRY";
+                break;
+            default:
+                Printf("Unexpected \"not implemented\" record type 0x%02X at %u.", thisRecordType, lclRecordNumber);
+    }
+    return Str("%s%s", baseTypeString, ((baseRecordType == thisRecordType)) ? "" : KeilString);
+}
+
+//#ifdef NO_KEIL
+//#ifndef OMF52_H_NO_KEIL
+//#error "NO_KEIL, if defined, must be defined before including OMF51.H"
+//#endif
+//#else
+//#ifdef OMF51_H_NO_KEIL
+//#error "NO_KEIL, if defined, must be defined before including OMF51.H"
+//#endif
+//#endif

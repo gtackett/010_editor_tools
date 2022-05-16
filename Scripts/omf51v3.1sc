@@ -1,0 +1,75 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File: OMF51.bt
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: *.obj *.lib
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+#ifndef _OMF51_TYPES_INC_
+#include </Users/gtackett/Documents/SweetScape/Include Files/OMF51_types.inc>
+#endif
+//#ifdef DONT
+LittleEndian();
+
+local OMF51_FILETYPE filetype = ft_Empty;
+
+Assert( FileSize() != 0, "The input file is empty");
+filetype = ReadByte();
+Assert(
+    filetype  == ft_LibFile,
+    "This template can't be used with this type of file" );
+
+switch(filetype) {
+    case ft_ObjFile:
+        RunTemplate("obj51v3.bt");
+        break;
+
+    case ft_LibFile:
+        RunTemplate("lib51v3.bt");
+        break;
+}
+
+
+typedef struct {
+//    local OMF51_FILETYPE filetype = ft_Empty;
+    if ( FileSize() == 0)
+    {
+        Warning("File is empty.\n");
+    }
+    else
+    {
+        OMF51_RECORDTYPE     recordType;
+        if (recordType == rt_Module_HDR || recordType == rt_LIB_Header) {
+            uint16          recordLength <format=hex>;
+            uhbyte          recordData[recordLength-1];
+            uhbyte          checksum;
+            filetype = recordType;
+        }
+        else {
+              local int filetype = recordType;
+//            StatusMessage("%02X is not a valid OMF51 file header byte\n", filetype);
+        }
+    }
+} OMF51_FILETYPEDescriptor_ <name="File type", read=ReadOMF51_FILETYPEDescriptor, format=hex>;
+
+//OMF51_FILETYPEDescriptor_ x;
+Printf("type %04x\n", filetype);
+
+string ReadOMF51_FILETYPEDescriptor(OMF51_FILETYPEDescriptor_ &x)
+{
+    if (FileSize() == 0) return "Empty file!";
+    x.recordType = ReadUByte();
+    //Assert(x.recordType == rt_LIB_Header || x.recordType == rt_Module_HDR, Str("Invalid record type 0x%02X!", x.recordType));
+    x.filetype = x.recordType;
+    return (x.filetype == ft_LibFile 
+                ? "Library file"
+                : x.filetype == ft_ObjFile
+                     ? "Object file"
+                     : Str("Unknown file type value: 0x%02.2X", x.filetype));
+}
+//#endif // DONT
