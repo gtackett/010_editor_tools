@@ -1,0 +1,327 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File: LIB51RDv3.bt
+//   Authors: 
+//   Version: 3.0
+//   Purpose: 
+//  Category: 
+// File Mask: *.lib
+//  ID Bytes: 2C 07 00 [+6] 02 
+//   History: 
+//------------------------------------------------
+
+//
+// Based upon listings produced by the "Total Commander" OBJVIEW Lister plugin displays, intially using the following output:
+//
+
+#ifdef __PLEASE_DONT_DEFINE_ME__
+#error "I told you not to define __PLEASE_DONT_DEFINE_ME__!!!"
+
+MODULE '?RTX51_TINY_KERNAL'
+
+SEGMENT TABLE
+TYPE    BASE      LENGTH    RELOCATION   SEGMENT NAME
+-----------------------------------------------------
+DATA    0008H     0006H     ABSOLUTE     
+CODE    000BH     0003H     ABSOLUTE     
+CODE    0000H     0002H     UNIT         ?RTX?TASKENT?S
+IDATA   0000H     0001H     UNIT         ?RTX?TASKSP?S
+IDATA   0000H     0002H     UNIT         ?RTX?TASKSTATE?S
+BIT     0000H.0   0000H.1   UNIT         ?RTX?BITS
+CODE    0000H     0172H     UNIT         ?RTX?CODE
+
+EXTRN  NUMBER   (?RTX_MAXTASKN)
+EXTRN  CODE     (?C_STARTUP)
+
+PUBLIC CODE     ?RTX?SET_ISR            @004FH ?RTX?CODE
+PUBLIC DATA     ?RTX_CURRENTTASK        @000CH 
+PUBLIC DATA     ?RTX_NEXTID             @0007H 
+PUBLIC CODE     ?RTX_NEXTTASK           @0092H ?RTX?CODE
+PUBLIC NUMBER   ?RTX_RAMTOP             @00FFH 
+PUBLIC CODE     ?RTX_TASKENTRY          @0000H ?RTX?TASKENT?S
+PUBLIC CODE     ?RTX_TASKIDX            @0171H ?RTX?CODE
+PUBLIC IDATA    ?RTX_TASKSP             @0000H ?RTX?TASKSP?S
+PUBLIC IDATA    ?RTX_TASKSTATUS         @0000H ?RTX?TASKSTATE?S
+PUBLIC CODE     MAIN                    @0135H ?RTX?CODE
+PUBLIC CODE     OS_SWITCH_TASK          @007BH ?RTX?CODE
+
+SYMBOL TABLE
+VALUE       TYPE      NAME
+--------------------------
+
+-------     MODULE    ?RTX51_TINY_KERNAL
+            SRC_FILE  "Conf_tny.a51"
+C:0000H     SEGMENT   ?RTX?TASKENT?S
+C:004FH     PUBLIC    ?RTX?SET_ISR
+C:0084H     LOCAL     ?C0001
+C:004FH     LOCAL     NOROBINTIMEOUT
+
+
+CONTENT C:000BH 
+
+ -- FIXUP @000CH   RELOC   WORD ( C:0005H[?RTX?CODE] )
+
+	CSEG	AT	0BH
+
+		LJMP	L?0001					; 000B: 02 00 00   	...
+
+I:0F00H     LINENO    
+
+REC 60 (2271 bytes) E6 C0 E0 80 F6 E5 0C D3 9F 40 27 E5 0C 24 00 F8 E6 AE 0C BE 
+#endif // __PLEASE_DONT_DEFINE_ME__
+
+#include <OMF51/stdtypes.bt>
+#include <OMF51/LibTypes.bt>
+#include <General Purpose/UtilityFunctions.bt>
+
+const ubyte EMPTYLIBSIZE = 8;
+
+typedef ushort RECORDLENGTH;
+
+typedef ubyte uhbyte <format=hex>;
+typedef ubyte udbyte <format=decimal>;
+typedef ubyte uhbyte <format=hex>;
+
+typedef ushort udshort <format=decimal>;
+
+typedef uhbyte CHECKSUMBYTE;
+
+LittleEndian();
+
+Assert ( FileSize() >= EMPTYLIBSIZE, Str("%d-byte file is %d bytes too short to be even an empty OMF-51 library!\n", FileSize(), EMPTYLIBSIZE - FileSize()) );
+
+local uint64 recordByteOffset, checksumCount, lclRecordNumber;
+
+local byte checksumValid;
+
+local const int  maxExpectedNameLength = 30;
+
+local td_recType lclNextRT;
+
+typedef struct {
+    recordByteOffset = FTell();
+    BitfieldDisablePadding();
+    td_recType     recordType </*name="ubyte recordType"*/>;
+    Assert ( recordType == rt_LIB_Header, Str("First byte of file (0x%2X) is not valid for an OMF-51 library!",  recordType) );
+
+    udshort         recordLength
+                        < 
+                          fgcolor=(this != 7 ? cRed : cNone),
+                          comment=(this == 7 ? "(expected value)" : "(value should be 7)")
+                        >;
+    checksumCount = recordLength + 3;
+    udshort         moduleCount /* <name="uint16"> */;
+    LIBBLKNUM       moduleNamesStartBlock <name="uint16", comment=(this <= 9 ? "" : Str("%d blocks", this) )>;
+    LIBBYTENUM      moduleNamesByteInBlock  <name="uint16", comment=(this <= 9 ? "" : Str("%d bytes", this) )>;
+    BitfieldEnablePadding();
+    CHECKSUMBYTE checkSum;
+    local const int64 
+        lclChecksumStart  = startof(this),
+        lclChecksumLength = recordLength + sizeof(this.recordType) + sizeof(this.recordLength);
+
+    local const uhbyte lclChecksumResult = validateChecksum(lclChecksumStart, lclChecksumLength);
+    myAssert(lclChecksumResult == 0, "Library header checksum result is not zero!");
+    lclRecordNumber++;
+} LIBRARYHEADER <
+    name="Library header",
+//    read=LibHeaderDescriptor_, 
+    format=hex,
+    hidden=false
+  >;
+
+//void libraryHeader(void)
+//{
+//    BitfieldDisablepadding();
+//    LIBRARYHEADER libraryHeader;
+//    BitfieldEnablePadding();
+//}
+
+
+typedef struct {
+    //
+    // Read in the library header (including validating its checksum as part of its struct)
+    LIBRARYHEADER header;
+    //
+    // Read in zero or more modules (including validating checksums as part of the structs that compose each
+    struct {
+        optModules();
+    //
+    // Read in the LIB_MODULE_NAMES_RECORD, LIB_MODULE_NAMES_RECORD, LIB_MODULE_LOCATIONS_RECORD, and LIB_DICTIONARY_RECORD
+    // LIB_MODULE_NAMES_RECORD moduleNames;
+    // LIB_MODULE_LOCATIONS_RECORD moduleLocations;
+    // LIB_DICTIONARY_RECORD end;
+    } modules;
+} OMF51_LIBRARY;
+
+#ifndef NO_KEIL
+local byte keilFlag;
+//local const string KeilString = " (Keil)";
+#endif // NO_KEIL
+
+
+
+   
+typedef struct {
+    udbyte nameLength;
+    checkNameLength(nameLength);
+    char moduleName[nameLength];
+} NAMEDATA;
+
+
+
+typedef struct {
+        td_recType recordType;
+        myAssert( recordType == rt_Module_HDR, Str("Not a module header record at record #%d", lclRecordNumber));
+        ushort recordLength;
+        
+        BitfieldDisablePadding();
+    
+        if (recordLength < MHRMINSIZE)
+        {
+            Warning("Library corrupt? Module header record length %u is shorter than minimum (%u).\n", recordLength, MHRMINSIZE);
+            FSkip(recordLength);
+        }
+        else
+        {           
+            //struct {
+            //    udbyte nameLength;
+            //    char moduleName[nameLength];
+            //} nameData <name=formatModuleName>;
+            NAMEDATA nameData;
+ 
+            TRNID           trnId;
+            uint :8;
+            BitfieldEnablePadding();
+        }
+        uhbyte checksum;
+        lclRecordNumber++;
+} MODULEHEADER;// <name=(this.nameData.moduleName)>;
+
+typedef struct {
+    td_recType recordType;
+    ushort recordLength;
+    
+    BitfieldDisablePadding();
+    ubyte   nameLength;
+    char moduleName[nameLength];
+        
+    uint    pad:16;
+    uhbyte  regMsk;
+    uint  pad2  :8;
+    uhbyte checksum;
+    lclRecordNumber++;
+    BitfieldEnablePadding();
+} MODULEEND;
+
+int isDefType( td_recType x) {
+    switch(recordType) {
+        case rt_Segment_DEF:
+        case rt_Segment_DEF_Keil:
+        case rt_Public_DEF:
+        case rt_Public_DEF_Keil:
+        case rt_External_DEF:
+        case rt_External_DEF_keil:
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+typedef struct {
+    if (isDefType(ReadUByte())
+    td_recType recordType;
+    switch(recordType) {
+        case rt_Segment_DEF:
+            break;
+
+        case rt_Segment_DEF_Keil:
+            break;
+
+        case rt_Public_DEF:
+            break;
+
+        case rt_Public_DEF_Keil:
+            break;
+
+        case rt_External_DEF:
+            break;
+
+        case rt_External_DEF_keil:
+            break;
+
+        default:
+            done = true;
+    }
+    if (done)
+    {
+        FSkip(-1);
+    }
+    else {
+        td_recType recordType;
+        ushort recordLength;
+        FSkip(recordLength+1);
+    }
+} DEFINITION_RECORD;
+    
+void optDefinitionRecords()
+{
+    local int done = false;
+    while (
+    DEFINITION_RECORD defRecord(); 
+   while(true) {
+     }
+    while (lclNextRT == 
+}
+void optDataDebugRecords() {}
+void module(void)
+{
+    MODULEHEADER moduleHeader; //<name=(this.nameData.moduleName)>;
+    optDefinitionRecords();
+    optDataDebugRecords();
+    MODULEEND moduleEnd;
+}
+
+void optModules(void)
+{
+    lclNextRT = ReadUByte();
+    if (lclNextRT != rt_Module_HDR)
+        return;
+    while ( lclNextRT == rt_Module_HDR)
+    {
+        struct module {
+            module();
+        } name; //=<(this.moduleHeader.nameData.moduleName)>;
+        lclNextRT = ReadUByte();
+    }
+}
+
+uhbyte validateChecksum(int64 start, int64 count)
+{
+    Assert(start >= 0, "Invalid start offset");
+    Assert(count > 0, "Invalid count");
+    return     ( (uhbyte) 0xff & Checksum(CHECKSUM_BYTE, recordByteOffset, checksumCount) == 0 );
+}
+local int recordNumber;
+uint64 checksumColor(byte n)
+{
+    return n ? cNone : cRed;
+}
+
+
+int checkNameLength(ubyte len)
+{
+    local int good =  (len > 0 && len <= maxExpectedNameLength) ? true : false;
+    local string message = (len == 0) 
+                    ? "Zero length name"
+                    : (len > maxExpectedNameLength)
+                        ? Str( "Name length (%u) exceeds maximum expected (%u)", n, maxExpectedNameLength)
+                        : "";
+    Assert( good, message + Str(" at record %u", lclRecordNumber ) );
+    return good;
+}
+
+local int64 MHRMINSIZE = sizeof(td_recType) + sizeof(RECORDLENGTH) + sizeof(TRNID) + sizeof(byte) + sizeof(CHECKSUMBYTE);
+
+OMF51_LIBRARY library;

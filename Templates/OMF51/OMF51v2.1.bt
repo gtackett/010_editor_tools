@@ -1,0 +1,167 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File: OMF51.bt
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: *.obj *.lib
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+const ubyte LOWSANESIZE = 8;
+LittleEndian();
+
+typedef ushort RECORDLENGTH;
+typedef ubyte uhbyte <format=hex>;
+typedef ubyte udbyte <format=decimal>;
+
+typedef uhbyte CHECKSUMBYTE <name="Checksum byte">;
+
+typedef enum <ubyte> {
+    rt_Invalid          =   0,
+    rt_Module_HDR       =   0x02,
+    rt_Module_END       =   0x04,
+    rt_Segment_DEF      =   0x0e,
+    rt_Scope_DEF        =   0x10,
+    rt_Public_DEF       =   0x16,
+    rt_External_DEF     =   0x18,
+    rt_Debug_Item       =   0x12,
+    rt_Content          =   0x06,
+    rt_Fixup            =   0x08,
+    rt_LIB_Header       =   0x2c,
+    rt_LIB_ModName      =   0x28,
+    rt_LIB_ModLocs      =   0x26,
+    rt_LIB_DICTNRY      =   0x2A
+} RECORDTYPE;
+
+typedef enum <ubyte> {
+    ASM51   =   0xFD,
+    PLM_51, //  0xFE
+    RL51    //  0xFF
+} TRNID;
+
+typedef enum <int> {
+    ft_Empty    =   -1,
+    ft_ObjFile  =   rt_Module_HDR,
+    ft_LibFile =   rt_LIB_Header
+} FILETYPE <format=hex>;
+
+#define MHRMINSIZE (sizeof(RECORDTYPE) + sizeof(RECORDLENGTH) + sizeof(TRNID) + sizeof(byte) + sizeof(CHECKSUMBYTE))
+typedef struct {
+    RECORDTYPE      recordType;
+    if (recordType == rt_Module_HDR) {
+        RECORDLENGTH    recordLength;
+        if (recordLength > MHRMINSIZE)
+        {
+            string          moduleName[recordLength - 6];
+            TRNID           trnId;
+            uint :8;
+            CHECKSUMBYTE    checkSum;            
+        }
+        else {
+             Warning("Module header record length %u is shorter than minimum (%u)\n", recordLength, MHRMINSIZE);
+        }     
+    }
+    string          desc;
+} MODULE_HEADER_RECORD_ /*<read=ReadModuleHeaderDescriptor>*/;
+
+
+//string ReadModuleHeaderDescriptor(void);
+//{
+//    local string
+//        rtText;
+//    
+//
+//    if (x.recordType != rt_Module_HDR)
+//    {
+//        return Str("0x%02X is not a valid record type", x.recordType);
+//    }
+//}
+
+typedef struct {
+    MODULE_HEADER_RECORD_   moduleHeader;       
+//    DEFINITION_RECORD_      definitionRecord    <read=ReadDefinitionRecordDescriptor>;
+//    MODULE_END_RECORD_      moduleEndRecord     <read=ReadEndRecordDescriptor>;
+} OBJMODULE;
+
+local int firstRecord = true;
+
+if ( FileSize() < LOWSANESIZE )
+{
+    Warning("File is too short at %u byte(s) long.");
+}
+
+local int firstModule = true;
+
+local FILETYPE fileType = ReadByte(0);
+
+typedef struct {
+//    local FILETYPE fileType = ft_Empty;
+    if ( FileSize() == 0)
+    {
+        Warning("File is empty.\n");
+    }
+    else
+    {
+        RECORDTYPE     recordType <format=hex>;
+        if (recordType == rt_Module_HDR || recordType == rt_LIB_Header) {
+            uint16          recordLength <format=decimal>;
+            uhbyte          recordData[recordLength-2];
+            uhbyte          checksum;
+            fileType = recordType;
+        }
+        else {
+              local int fileType = recordType;
+//            StatusMessage("%02X is not a valid OMF51 file header byte\n", fileType);
+        }
+    }
+} FileTypeDescriptor_ <name="File type", read=ReadFileTypeDescriptor, format=hex>;
+
+string ReadFileTypeDescriptor(FileTypeDescriptor_ &x)
+{
+    if (FileSize() == 0) return "Empty file!";
+    x.recordType = ReadUByte();
+    //Assert(x.recordType == rt_LIB_Header || x.recordType == rt_Module_HDR, Str("Invalid record type 0x%02X!", x.recordType));
+    x.fileType = x.recordType;
+    return (x.fileType == ft_LibFile 
+                ? "Library file"
+                : x.fileType == ft_ObjFile
+                     ? "Object file"
+                     : Str("Unknown file type value: 0x%02.2X", x.fileType));
+}
+
+FileTypeDescriptor_ ftd;
+
+Printf("type %04x\n", ftd.fileType);
+
+switch( ftd.fileType ) {
+    case ft_ObjFile:
+        if ( firstRecord)
+        {
+            FPos(0);
+        }
+        while ( !Feof() )
+        {
+            local RECORDTYPE recordType = firstRecord ? fileType : ReadUInt16();
+
+            if ( recordType == rt_Module_HDR )
+            {
+                OBJMODULE   objModule;
+            }
+            else {
+                Warning( "Record type 0x%02X is not a valid OMF51 record");
+            }
+        }
+        break;
+
+    case ft_LibFile:
+        Warning( "No code for library file" );
+        break;
+
+    default:
+        Warning( "File type 0x%02X is neither ft_ObjFile (0x%02X) nor ft_LibFile (0x%02X)\n", fileType, ft_ObjFile, ft_LibFile );
+        break;
+}
+

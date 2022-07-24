@@ -1,0 +1,35 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File: OMF51v3.bt
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: *.obj *.lib
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+LittleEndian();
+
+typedef enum <int> {
+    ft_Empty    =   -1,
+    ft_ObjFile  =   rt_Module_HDR,
+    ft_LibFile =   rt_LIB_Header
+} O51FILETYPE;
+
+local O51FILETYPE lclFileType = ft_Empty;
+
+Assert(
+    lclFileType == ft_ObjFile || fileType == ft_LibFile),
+    "This template can't be used with this type of file" );
+
+switch(lclFileType) {
+    case ft_ObjFile:
+        RunTemplate("obj51v3.bt");
+        break;
+
+    case ft_LibFile:
+        RunTemplate("lib51v3.bt";
+        break
+}

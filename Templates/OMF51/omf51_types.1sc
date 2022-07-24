@@ -1,0 +1,169 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template (include file)
+//
+//      File: omf51_types.1sc
+//   Authors: 
+//   Version: v3.0
+//   Purpose: 
+//  Category: 
+//   History: 
+//------------------------------------------------
+//
+// Definitions referring to KEIL or Keil are not defined by Intel's OMF51 document.
+// ARM Keil's 8051 C toolchain uses these values but does not document them.
+//
+#ifndef _OMF51_TYPES_BT_
+#define _OMF51_TYPES_BT_
+#include </Users/gtackett/Documents/SweetScape/Include Files/General Purpose/UsefulTypes.1sc>
+typedef ubyte td_ChkSum <format=hex, name="checksum byte">;
+typedef enum <ubyte>
+{
+    rt_Module_HDR       =   0x02,
+    rt_Module_END       =   0x04,
+    rt_Content          =   0x06,
+#ifndef NO_KEIL
+    rt_Content_Keil     =   0x07,
+#endif
+    rt_Fixup            =   0x08,
+    rt_Fixup_Keil       =   0x09,
+    rt_Segment_DEF      =   0x0e,
+#ifndef NO_KEIL
+    rt_Segment_DEF_Keil =   0x0f,
+#endif
+    rt_Scope_DEF        =   0x10,
+    rt_Debug_Item       =   0x12,
+    rt_Public_DEF       =   0x16,
+#ifndef NO_KEIL
+    rt_Public_DEF_keil  =   0x17,
+#endif
+    rt_External_DEF     =   0x18,
+#ifndef NO_KEIL
+    rt_External_DEF_keil =   0x19,
+#endif
+    rt_LIB_ModLocs      =   0x26,
+    rt_LIB_ModName      =   0x28,
+    rt_LIB_DICTNRY      =   0x2A,
+    rt_LIB_Header       =   0x2c
+} td_recType
+    <
+        format=hex
+        , name="Record type"
+        //, comment=
+        //    (isOMFrecType(this)
+        //       ? ( ""
+//#define NO_KEIL
+//#ifndef NO_KEIL
+//              +
+//                   (isKeilOMF51recType(this)
+//                        ? "Keil-specific"
+//                        : "")
+//#endif
+//#undef NO_KEIL
+//             : "Invalid value"
+//            )  
+    >;
+
+int isKnownRecType(td_recType n)
+{
+    return EnumToString(n) != "";
+}
+
+int isKeilRecType(td_recType n)
+{
+#ifndef NO_KEIL
+    return (n & 1 == 1) && (EnumToString(n) != "");
+#else
+#warning "NO_KEIL is #defined. Compiling isKeilRecType() as equivalent to isKnownRecType()."
+    return EnumToString(n) != "";
+#endif // NO_KEIL
+}
+
+td_recType keilBaseRecType(td_recType n)
+{
+#ifdef NO_KEIL
+#warning "NO_KEIL is #defined. Replacing calls to keilBaseRecType() with calls to a \"pass-through-or-FALSE\" function."
+    return  EnumToString(n) != "" ? n : 0;
+#else
+    return EnumToString(n) != "" ? n & 0xfe : 0;
+#endif // NO_KEIL
+}
+typedef enum <byte> {
+    False = false,
+    True
+} td_bool;
+
+typedef enum <byte> {
+    No = False,
+    Yes = True
+} td_boolYesNo;
+
+typedef enum <ubyte> {
+    ASM51   =   0xFD,
+    PLM_51, //  0xFE
+    RL51    //  0xFF
+} td_TRNID <name="Object creator">;
+
+
+typedef ushort td_recLength;
+
+typedef struct {
+    ubyte strLength            <format=decimal>; // Valid on interval [0,40];
+    if (strLength > 0)
+    {
+        Assert( strLength <= 40, Str( "String length %d 40 byte maximum.", strLength));
+        struct {
+            char strText[parentof(this).strLength];
+        } str;
+    }
+} td_countedStr;
+
+typedef enum <ubyte> {
+    ABS = 0
+} td_segID <name="Segment ID">;
+
+typedef enum <ubyte>  { // 3 bits
+    SegType_CODE = 0,
+    SegType_XDATA,
+    SegType_DATA,
+    SegType_IDATA,
+    SegType_BIT
+} td_segType <name="Segment type">;
+
+typedef struct { // 2 bits
+    BitfieldDisablePadding();
+    ubyte   Bank_0 :1,
+            Bank_1 :1,
+            Bank_2 :1;
+    BitfieldEnablePadding();
+} td_segReg <name="Register bank bitmap"> ;
+
+typedef enum <ushort> {
+    Reloc_ABS   = 0,
+    Reloc_UNIT,
+    Reloc_BITADDRESSABLE,
+    Reloc_INPAGE,
+    Reloc_INBLOCK,
+    Reloc_PAGE
+} td_relocType <name="Relocation type">;
+
+typedef struct {
+    BitfieldDisablePadding();
+    td_boolYesNo      E:1 <name="Empty?">;          // Set == segment size is zero
+    uint               :1;
+    td_boolYesNo    OVL:1  <name="Overlayable?">;          // Set == segment is overlayable
+    if (OVL)
+        td_segReg   SEGREG:2;          //    
+    else
+        uint              :2;
+    td_relocType  RELTYPE:3;
+    BitfieldEnablePadding();
+} td_segInfo <name="Segment information">;
+
+//typedef struct {
+//
+//} td_segdefsRecord;
+//typedef struct {
+//
+//} td_defsRecord;
+
+#endif // _OMF51_TYPES_BT_

@@ -1,0 +1,103 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File: obj51.bt
+//   Authors: Galen Tackett
+//   Version: 1.0
+//   Purpose: Explore OMF51 file format (Intel's MCS-51 Object Module Format)
+//  Category: Object File
+// File Mask: *.obj
+//  ID Bytes: 02
+//   History: 
+//------------------------------------------------
+
+
+// When "#define SHOWPROBLEM" is commented out, the function "ReadMODULEEND" is defined with an argument
+// name that is unique across the whole of the template file.
+//
+// When it is not commented out, an error occurs, apparently because "ReadMODULEEND" is defined with an argument that has the same name
+// as the argument to ReadMODULESTART.
+//
+// In an ordinary language like C, the scope for the names of a function's arguments is delimited by the function body's enclosing {} braces/
+//
+// But it appears that this is not the case in 010 Editor templates.
+//
+#define USE_UNIQUE
+#ifdef USE_UNIQUE
+#define MENAME me
+#else
+#define MENAME x
+#endif
+
+typedef ubyte uhbyte <format=hex>;
+
+typedef struct {
+    BitfieldDisablePadding();
+    ushort recordLength;
+
+    if (recordLength > 0) {
+        ubyte nameLength;
+        char  Name[nameLength];
+    }
+    uhbyte TrnId;
+    uhbyte  :8;
+    uhbyte CheckSum;
+    BitfieldEnablePadding();
+} MODULESTART <read=ReadMODULESTART>;
+
+string ReadMODULESTART( MODULESTART &x)
+{
+    if (x.nameLength > 0)
+        return "Begin module " + x.Name;
+    return "Zero-length module name";
+}
+
+typedef struct {
+    BitfieldDisablePadding();
+    ushort recordLength;
+
+    if (recordLength > 0) {
+        ubyte nameLength;
+        char name[nameLength];
+    }
+    short  :16;
+    uhbyte regMask;
+    uhbyte  :8;
+    uhbyte checkSum;
+    BitfieldEnablePadding();
+} MODULEEND <read=ReadMODULEEND>;
+
+string ReadMODULEEND( MODULEEND &x)
+{
+    if (x.nameLength > 0)
+        return "End module " + x.name;
+    return "Zero-length module name";
+}
+
+local byte errorFlag = false;
+local uhbyte checksumResult;
+
+while(!FEof() && !errorFlag) {
+    ubyte recType <format=hex>;
+    
+    switch(recType) {
+        case 0x02:
+            MODULESTART modStart;
+            Printf("Start: %u, Size: %u\n", startof(modStart), recordLength);
+            checksumResult = Checksum(CHECKSUM_BYTE, startof(modStart) - sizeof(recType), sizeof(modStart) + sizeof(recType));
+            Assert(checksumResult == 0, Str("Invalid checksum %02x in module start", modStart.CheckSum));
+            break;
+
+        case 0x04:
+            MODULEEND modEnd;
+            checksumResult = Checksum(CHECKSUM_BYTE, startof(modEnd) - sizeof(recType), sizeof(modEnd) + sizeof(recType));
+            Assert(checksumResult == 0, Str("Invalid checksum %02x in module end", modEnd.checkSum));
+            break;
+
+        default:
+            Warning("Unimplemented type %02x", recType);
+            //errorFlag = true;
+            break;       
+    }
+}
+
