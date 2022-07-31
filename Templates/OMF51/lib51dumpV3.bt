@@ -167,9 +167,9 @@ local const int64 MHRMINSIZE = (sizeof(td_recType) + sizeof(td_recLength) + size
 
 string libHeaderComment(LibHeader &lh)
 {
-    return checksumValid
-                ? "" /* Str("File offset to Library Module Names Record: %06X", lh.moduleNamesStartBlock * 2048 + lh.moduleNamesByteInBlock) */
-                : "Header is corrupt" ;
+    return //!checksumValid
+                // : "Header is corrupt" ;
+                /*?*/ "" /* Str("File offset to Library Module Names Record: %06X", lh.moduleNamesStartBlock * 2048 + lh.moduleNamesByteInBlock) */;
 }
 
 struct library
@@ -193,7 +193,7 @@ void skipUnimplementedRecord()
         local string nameString; 
         td_recType recordType;
         nameString = EnumToString(recordType);
- #ifndef NO_KEIL
+#ifndef NO_KEIL
         if (!keilFlag)
 #endif // NO_KEIL
         {
@@ -278,6 +278,15 @@ int parseAnotherRecord(void)
             case rt_External_DEF_keil:
                 parseExternalDEFKeil();
                 break;
+#ifndef NO_KEIL
+            case rt_Content_Keil:
+            case rt_Fixup_Keil:
+            case rt_Segment_DEF:
+            case rt_Public_DEF_keil:
+            case rt_External_DEF_keil:
+                skipUnimplementedRecord();
+
+#endif // NO_KEIL
     
 #ifdef NOT_YET
             case rt_Segment_DEF:
@@ -301,13 +310,6 @@ int parseAnotherRecord(void)
             case rt_LIB_ModLocs:
             case rt_LIB_ModName:
             case rt_LIB_DICTNRY:
-#ifndef NO_KEIL
-            case rt_Content_Keil:
-            case rt_Fixup_Keil:
-            case rt_Segment_DEF:
-            case rt_Public_DEF_keil:
-            case rt_External_DEF_keil:
-#endif // NO_KEIL
                 skipUnimplementedRecord();
                 break;
 
@@ -462,20 +464,20 @@ void parseSegmentDEFKeil(void)
         local int32 remainingLength;
     //} name <name=(this.nameLength != 0 ? this.segmentName : "<BLANK>")>;
         remainingLength = recordLength;
-local string lclSegName;
-local td_segID lclSegID;
+        local string lclSegName;
+        local td_segID lclSegID;
         do {
             struct {
                 BitfieldDisablePadding();
                 td_segID segID;
                 lclSegID = segID;
-                td_segInfo segInfo;
-                td_segType segType;
+                td_segInfo segInfo_Q;
+                td_segType segType_Q;
                 local string lclSegName;
-                if (this.segType != SegType_BIT)
+                if (this.segType_Q != SegType_BIT)
                     uhbyte :8;
                 else
-                    uhbyte bitInfo;
+                    uhbyte bitInfo_Q;
                 BitfieldEnablePadding();
                 BigEndian();
                 ushort segAddress <format=hex>;
@@ -558,49 +560,6 @@ void parseExternalDEFKeil(void)
     //BitfieldEnablePadding();
     //ft = FTell();
 }
-
-//{
-//    //local string tmp;
-//    //local int ft, strsize, strstart;
-//    struct {
-//        local byte checksumValid = false;
-//        local int i;
-//        if (FTell() == 0x122)
-//            Printf("Stop here\n");
-//        td_recType recordType;
-//        ushort recordLength;
-//    //} name <name=(this.nameLength != 0 ? this.segmentName : "<BLANK>")>;
-//        BitfieldDisablePadding();
-//        struct {
-//            td_segID segID;
-//            td_segInfo segInfo;
-//            td_segType segType;
-//            local string lclSegName;
-//            if (this.segType != SegType_BIT)
-//                uhbyte :8;
-//            else
-//                uhbyte bitInfo;
-//            BigEndian();
-//            ushort baseAddress <format=hex>;
-//            ushort length      <format=hex, comment=((this > 9 ? Str("%d decimal", this) : "" ))>;
-//            LittleEndian();
-//            uhbyte :8;
-//            td_countedStr segName;
-//            lclSegName = segID == 0 ? "ABS" : (sizeof(segName) > 1) ? segName.str.strText : "(null)";
-//        } extern;
-//        checksumByte(startof(recordType), recordLength);
-//    } SegmentDefKeil
-//        <
-//        name=(
-//            Str("Keil segment 0x%02X:%s",
-//                this.seg.segID,
-//                this.seg.lclSegName != "" ? " " + this.seg.lclSegName : "")
-//          )
-//        >;
-//    //lclModuleTable[moduleTableIndex].mdIsOpen = false;
-//    //BitfieldEnablePadding();
-//    //ft = FTell();
-//}
 
 #ifdef NOT_YET
 typedef struct {

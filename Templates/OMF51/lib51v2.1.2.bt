@@ -21,20 +21,20 @@
 #define NO_KEIL 1
 //#undef NO_KEIL
 #include <OMF51.h>
-#include <UtilityFunctions.inc>
+#include <UtilityFunctions.bt>
 
 local int test;
 
 typedef ubyte UHBYTE <format=hex>;
 
-typedef ushort BLKNUMBER <format=hex>;
-typedef ushort BYTENUMBER <format=hex>;
+typedef ushort LIBBLKNUM <format=hex>;
+typedef ushort LIBBYTENUM <format=hex>;
 
 typedef struct {
     string  mdName;
     ubyte   mdIsOpen;
-    BLKNUMBER mdStartBlock;               // Starting "block number" (128 bytes per block) of module names record
-    BYTENUMBER  mdStartByte;                // byte offset, from first byte of starting block, to first byte of module names record
+    LIBBLKNUM mdStartBlock;               // Starting "block number" (128 bytes per block) of module names record
+    LIBBYTENUM  mdStartByte;                // byte offset, from first byte of starting block, to first byte of module names record
     uint        mdStartRecord, mdEndRecord; // both are currently not needed
     ubyte       mdTrnId <format=hex>;
 } LCLMODULE;
@@ -73,10 +73,10 @@ string recordTypeName(RECORDTYPE);
 
 typedef struct {
     BitfieldDisablePadding();
-    OMF51_RECORDTYPE recordType
+    td_recType recordType
     ushort moduleCount;
-    BLKNUMBER startBlock;
-    BYTENUMBER byteNumber;
+    LIBBLKNUM startBlock;
+    LIBBYTENUM LIBBYTENUM;
     BitfieldEnablePadding();
     //lclModuleCount = moduleCount;
     lclLibraryDesc = 
@@ -195,7 +195,7 @@ string ReadUNDOCRECORDdata( UNDOCRECORDdata &x)
 }
 
 
-uint compute_fileoffset(BLKNUMBER b, BYTENUMBER bytenum)
+uint compute_fileoffset(LIBBLKNUM b, LIBBYTENUM bytenum)
 {
     return 128 * b + bytenum;
 }
@@ -220,7 +220,7 @@ typedef struct LIBRARY {
                 case rt_LIB_Header:
                     myAssert(startof(recType) == 0, Str("Record %u, library header at offset 0x%04X instead of 0", lclRecordNumber, startof(recType)) );
                     LIBHEADER libhdr;
-                    lclModNameOffset = compute_fileoffset(libhdr.startBlock, libhdr.byteNumber);
+                    lclModNameOffset = compute_fileoffset(libhdr.startBlock, libhdr.LIBBYTENUM);
                     break;
         
                 case rt_Module_HDR:
@@ -316,9 +316,9 @@ string readLIBRARY( _LIBRARY &x) {
     return Str(
         "OMF51 library, %u module%s, module names record location byte 0x%04X: block %u (0x%02X), byte %u (0x%04X)",
         x.moduleCount, (x.moduleCount == 1) ? "" : "s",
-        compute_fileoffset(x.startBlock, x.byteNumber),
+        compute_fileoffset(x.startBlock, x.LIBBYTENUM),
         x.startBlock,  x.startBlock,
-        x.byteNumber,x.byteNumber );
+        x.LIBBYTENUM,x.LIBBYTENUM );
 }
 
 _LIBRARY library;

@@ -1,0 +1,78 @@
+//------------------------------------------------
+//--- 010 Editor v12.0.1 Binary Template
+//
+//      File: OMF51.bt
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: *.obj *.lib
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+LittleEndian();
+
+typedef ubyte uhbyte <format=hex>;
+
+typedef enum <ubyte> {
+    rt_Module_HDR       =   0x02,
+    rt_Module_END       =   0x04,
+    rt_Segment_DEF      =   0x0e,
+    rt_Scope_DEF        =   0x10,
+    rt_Public_DEF       =   0x16,
+    rt_External_DEF     =   0x18,
+    rt_Debug_Item       =   0x12,
+    rt_Content          =   0x06,
+    rt_Fixup            =   0x08,
+    rt_LIB_Header       =   0x2c,
+    rt_LIB_ModName      =   0x28,
+    rt_LIB_ModLocs      =   0x26,
+    rt_LIB_DICTNRY      =   0x2A
+} RECORDTYPE;
+
+typedef enum <int> {
+    ft_Empty    =   -1,
+    ft_ObjFile  =   rt_Module_HDR,
+    ft_LibFile =   rt_LIB_Header
+} FILETYPE;
+
+local FILETYPE fileType = ft_Empty;
+
+typedef struct {
+//    local FILETYPE fileType = ft_Empty;
+    if ( FileSize() == 0)
+    {
+        Warning("File is empty.\n");
+    }
+    else
+    {
+        RECORDTYPE     recordType;
+        if (recordType == rt_Module_HDR || recordType == rt_LIB_Header) {
+            uint16          recordLength <format=hex>;
+            uhbyte          recordData[recordLength-1];
+            uhbyte          checksum;
+            fileType = recordType;
+        }
+        else {
+              local int fileType = recordType;
+//            StatusMessage("%02X is not a valid OMF51 file header byte\n", fileType);
+        }
+    }
+} FileTypeDescriptor_ <name="File type", read=ReadFileTypeDescriptor, format=hex>;
+
+FileTypeDescriptor_ x;
+
+Printf("type %04x\n", fileType);
+
+string ReadFileTypeDescriptor(FileTypeDescriptor_ &x)
+{
+    if (FileSize() == 0) return "Empty file!";
+    x.recordType = ReadUByte();
+    //Assert(x.recordType == rt_LIB_Header || x.recordType == rt_Module_HDR, Str("Invalid record type 0x%02X!", x.recordType));
+    x.fileType = x.recordType;
+    return (x.fileType == ft_LibFile 
+                ? "Library file"
+                : x.fileType == ft_ObjFile
+                     ? "Object file"
+                     : Str("Unknown file type value: 0x%02.2X", x.fileType));
+}

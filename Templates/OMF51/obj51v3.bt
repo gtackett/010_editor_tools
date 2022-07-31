@@ -1,19 +1,20 @@
 //------------------------------------------------
 //--- 010 Editor v12.0.1 Binary Template
 //
-//      File: OMF51.bt
+//      File: obj51.bt
 //   Authors: 
-//   Version: 
+//   Version: v3.0
 //   Purpose: 
 //  Category: 
-// File Mask: *.aobj *.alib
-//  ID Bytes: 
+// File Mask: *.obj 
+//  ID Bytes: 02
 //   History: 
 //------------------------------------------------
 LittleEndian();
-#include <OMF51_Types.inc>
 
-//local OMF51_FILETYPE lclFileType = ReadByte();
+#include <../OMF51/OMF51_Types.1sc>
+///Users/gtackett/Documents/SweetScape/010 Templates/OMF51/omf51_types.1sc
+//local O51FILETYPE lclFileType = ReadByte();
 //
 //Assert(
 //    lclFileType == ft_ObjFile || fileType == ft_LibFile),
@@ -28,44 +29,144 @@ LittleEndian();
 //        RunTemplate("lib51v3.bt";
 //        break
 //}
+//#define NO
 
-        local OMF51_FILETYPE       fileType;
+LittleEndian();
+local td_recType  nextRecType = getNextRecType();
+
+#ifdef TEST_FIRST_BYTE
+local int typeCorrect = (nextRecType == rt_Module_HDR);
+
+local int32 recCount;
+
+//#define WARNING_NOT_ASSERT
+#ifdef WARNING_NOT_ASSERT
+if ( !typeCorrect)
+#else 
+Assert( typeCorrect,
+#endif // WARNING_NOT_ASSERT
+#ifdef WARNING_NOT_ASSERT
+    Warning(
+#endif //
+        Str(
+             FileNameGetBase(GetFileName(), true)
+                + " initial byte 0x%02X, (" 
+                + EnumToString(nextRecType)
+                + "), incorrect for OMF51 object file.",
+            nextRecType
+         )
+         + "\n"
+         + Str(
+            "Correct value: 0x%02X,(" + EnumToString(rt_Module_HDR) + ").",
+            rt_Module_HDR
+            )
+    );
+#endif
+
 typedef struct {
-//    local FILETYPE fileType = ft_Empty;
-    if ( FileSize() == 0)
-    {
-        Warning("File is empty.\n");
-    }
-    else
-    {
-        OMF51_RECORDTYPE     recordType;
+        BitfieldDisablePadding();
+        td_segID segID;
+        td_segInfo segInfo;
+        td_segType segType;
+        BitfieldEnablePadding();
 
-        if (recordType == rt_Module_HDR || recordType == rt_LIB_Header) {
-            uint16          recordLength <format=hex>;
-            uhbyte          recordData[recordLength-1];
-            uhbyte          checksum;
-            fileType = recordType;
-        }
-        else {
-              local int fileType = recordType;
-//            StatusMessage("%02X is not a valid OMF51 file header byte\n", fileType);
-        }
-    }
-} FileTypeDescriptor_ <name="File type", read=ReadFileTypeDescriptor, format=hex>;
+        byte :8;
+        BigEndian();
+        HEXWORD segBase;
+        HEXWORD segSize;
+        LittleEndian();
+        byte :8;
+        td_countedStr   segName;
+        lclSegName = (sizeof(segName) > 1) ? segName.str.strText : "";
+} seg <
+        name=(
+            Str("Segment %d:%s",
+                this.segID,
+                lclSegName != "" ? " " + lclSegName : "")
+          )
+      >;
 
-FileTypeDescriptor_ x;
-
-Printf("type %04x\n", fileType);
-
-string ReadFileTypeDescriptor(FileTypeDescriptor_ &x)
+td_recType getNextRecType(void)
 {
-    if (FileSize() == 0) return "Empty file!";
-    x.recordType = ReadUByte();
-    //Assert(x.recordType == rt_LIB_Header || x.recordType == rt_Module_HDR, Str("Invalid record type 0x%02X!", x.recordType));
-    fileType = x.recordType;
-    return (x.recordType == ft_LibFile 
-                ? "Library file"
-                : fileType == ft_ObjFile
-                     ? "Object file"
-                     : Str("Unknown file type value: 0x%02.2X", x.fileType));
+    return ReadUByte();
+}
+
+local string lclSegName;
+
+local td_recLength lclSegLengthLeft;
+while( nextRecType == rt_Module_HDR )
+{
+    struct {
+//#ifdef NO 
+        struct {
+            td_recType      hdrModType;
+            td_recLength    recLength;
+            td_countedStr   modName;
+            td_TRNID        trnId;
+            byte            :8;
+            td_ChkSum       checkSum;
+        } modHdr;
+        for(0 == 0;nextRecType = getNextRecType(); 0 == 0)
+            struct
+            { 
+                td_recType          defRecType;
+                td_recLength        defReclength;
+                local td_recLength lclSegLengthLeft = defReclength;
+                switch(defRecType)
+                {
+                    case rt_Segment_DEF:
+                        break;
+////
+////
+////                      while(true) {
+////                        struct {
+////                            //HEXBYTE             segId;
+////                            td_segInfo          segInfo;
+////                            td_relocType        relocType;
+////                            uint          :8;
+////                            //HEXWORD             segBase;
+////                            uint16              segSize <format=decimal>;
+////                            //td_CountedStr       segName;
+////                        } segment;                    
+////                        lclSegLengthLeft -= sizeof(segment);
+////                        if (lclSegLengthLeft <= 0)
+////                            break;
+////                      } // while(true)
+////
+////
+                    case rt_Segment_DEF_Keil:
+                        while(lclSegLengthLeft > 1)
+                        {
+                            seg segment;
+                            lclSegLengthLeft -= FTell() - startof(segment);
+                        }
+                        break;
+
+                    case rt_Public_DEF_Keil:
+                        td_segID segID;    // 0 for absolute symbol, else segment no. containing public symbol
+                        int64  :40;        // 5 unknown bytes
+                        td_countedStr 
+
+                    case rt_Public_DEF:
+                        break;
+                    case rt_External_DEF:
+                        break;
+                    default:
+                        break;
+                } // switch(defRecType)
+
+                td_ChkSum   checksum;
+            } defRecord;
+////#endif NO2
+//#endif // NO
+        } module;
+    getNextRecType();
+}// while( nextRecType == rt_Module_HDR )
+
+
+string getSegNameStr(seg &s)
+{
+    if (s.segName.strLength > 0)
+        return s.segName.strText;
+    return "";
 }

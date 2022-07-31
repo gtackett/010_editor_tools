@@ -1,0 +1,7 @@
+#ifndef _LIBTYPES_BT_
+#define _LIBTYPES_BT_
+
+typedef ushort LIBBLKNUM <format=hex>;
+typedef ushort LIBBYTENUM <format=hex>;
+
+#endif // _LIBTYPES_BT_
