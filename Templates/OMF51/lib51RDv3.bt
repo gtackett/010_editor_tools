@@ -71,6 +71,7 @@ I:0F00H     LINENO    
 REC 60 (2271 bytes) E6 C0 E0 80 F6 E5 0C D3 9F 40 27 E5 0C 24 00 F8 E6 AE 0C BE 
 #endif // __PLEASE_DONT_DEFINE_ME__
 
+#include <myTypes.bt>
 #include <OMF51/stdtypes.bt>
 #include <OMF51/LibTypes.bt>
 #include <General Purpose/UtilityFunctions.bt>
@@ -79,13 +80,6 @@ const ubyte EMPTYLIBSIZE = 8;
 
 typedef ushort RECORDLENGTH;
 
-typedef ubyte uhbyte <format=hex>;
-typedef ubyte udbyte <format=decimal>;
-typedef ubyte uhbyte <format=hex>;
-
-typedef ushort udshort <format=decimal>;
-
-typedef uhbyte CHECKSUMBYTE;
 
 LittleEndian();
 

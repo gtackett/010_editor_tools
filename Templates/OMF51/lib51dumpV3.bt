@@ -1,7 +1,7 @@
 //------------------------------------------------
 //--- 010 Editor v12.0.1 Binary Template
 //
-//      File: LIB51V3.bt
+//      File: LIB51dumpV3.bt
 //   Authors: Galen Tackett
 //   Version: 3.0
 //   Purpose: Display each record in an OMF51 library file, with partial support for Keil-specific records
@@ -15,69 +15,9 @@
 // Based upon listings produced by the "Total Commander" OBJVIEW Lister plugin displays.
 //
 
-#ifdef __PLEASE_DONT_DEFINE_ME__
-#error "I told you not to define __PLEASE_DONT_DEFINE_ME__!!!"
-//  This particular __PLEASE_DONT_DEFINE_ME__ section is a sort of baseline
-//  OBJVIEW output for the first module I tried:
-MODULE '?RTX51_TINY_KERNAL'
-
-SEGMENT TABLE
-TYPE    BASE      LENGTH    RELOCATION   SEGMENT NAME
------------------------------------------------------
-DATA    0008H     0006H     ABSOLUTE     
-CODE    000BH     0003H     ABSOLUTE     
-CODE    0000H     0002H     UNIT         ?RTX?TASKENT?S
-IDATA   0000H     0001H     UNIT         ?RTX?TASKSP?S
-IDATA   0000H     0002H     UNIT         ?RTX?TASKSTATE?S
-BIT     0000H.0   0000H.1   UNIT         ?RTX?BITS
-CODE    0000H     0172H     UNIT         ?RTX?CODE
-
-EXTRN  NUMBER   (?RTX_MAXTASKN)
-EXTRN  CODE     (?C_STARTUP)
-
-PUBLIC CODE     ?RTX?SET_ISR            @004FH ?RTX?CODE
-PUBLIC DATA     ?RTX_CURRENTTASK        @000CH 
-PUBLIC DATA     ?RTX_NEXTID             @0007H 
-PUBLIC CODE     ?RTX_NEXTTASK           @0092H ?RTX?CODE
-PUBLIC NUMBER   ?RTX_RAMTOP             @00FFH 
-PUBLIC CODE     ?RTX_TASKENTRY          @0000H ?RTX?TASKENT?S
-PUBLIC CODE     ?RTX_TASKIDX            @0171H ?RTX?CODE
-PUBLIC IDATA    ?RTX_TASKSP             @0000H ?RTX?TASKSP?S
-PUBLIC IDATA    ?RTX_TASKSTATUS         @0000H ?RTX?TASKSTATE?S
-PUBLIC CODE     MAIN                    @0135H ?RTX?CODE
-PUBLIC CODE     OS_SWITCH_TASK          @007BH ?RTX?CODE
-
-SYMBOL TABLE
-VALUE       TYPE      NAME
---------------------------
-
--------     MODULE    ?RTX51_TINY_KERNAL
-            SRC_FILE  "Conf_tny.a51"
-C:0000H     SEGMENT   ?RTX?TASKENT?S
-C:004FH     PUBLIC    ?RTX?SET_ISR
-C:0084H     LOCAL     ?C0001
-C:004FH     LOCAL     NOROBINTIMEOUT
-
-
-CONTENT C:000BH 
-
- -- FIXUP @000CH   RELOC   WORD ( C:0005H[?RTX?CODE] )
-
-	CSEG	AT	0BH
-
-		LJMP	L?0001					; 000B: 02 00 00   	...
-
-I:0F00H     LINENO    
-
-REC 60 (2271 bytes) E6 C0 E0 80 F6 E5 0C D3 9F 40 27 E5 0C 24 00 F8 E6 AE 0C BE 
-#endif // __PLEASE_DONT_DEFINE_ME__
-//
-// /Users/gtackett/Documents/SweetScape/010 Templates/OMF51/../OMF51/OMF51_Types.1sc
 #include <omf51_types.1sc>
-// /Users/gtackett/Documents/SweetScape/010 Templates/OMF51/../OMF51/OMF51_Types.1sc
 #include <OMF51/LibTypes.1sc>
 #include </Users/gtackett/Documents/SweetScape/010 Scripts/UtilityFunctions.1sc> 
-//#include <~/Documents/SweetScape/010 Scripts/UtilityFunctions.1sc>
 
 const ubyte LOWSANESIZE = 8;
 
@@ -176,7 +116,7 @@ struct library
 {
     recordNumber++;
     LibHeader header <comment=libHeaderComment>;
-
+    local td_recType currentRecType;
     while(true) {
         if (parseAnotherRecord() == false)
             break;
@@ -186,27 +126,30 @@ struct library
     // ,
 >;
 
-void skipUnimplementedRecord()
+void skipUnimplementedRecord(const td_recType rt)
 {
+    td_recType recordType;
+    //currentRecType = rt;
     struct {
         local byte checksumValid = false;
         local string nameString; 
-        td_recType recordType;
-        nameString = EnumToString(recordType);
+        nameString = EnumToString(currentRecType);
+        local string recordNumString = Str("Record %4d:", recordNumber);
+        recordNumString += Str("%.*s", Min(1, 12 - Strlen(recordNumString)), " ");
 #ifndef NO_KEIL
         if (!keilFlag)
 #endif // NO_KEIL
         {
-            Printf("Record type 0x%02x (\"%s\") undocumented, at record %u\n", recordType, nameString, recordNumber);
+            Printf(recordNumString + " undocumented type 0x%02X (\"%s\")\n", recordType, nameString);
         }
 #ifndef NO_KEIL
         else {
-            Printf("Record type 0x%02X (Keil) (\"%s\") undocumented, at record %u\n", recordType, nameString, recordNumber);
+            Printf(recordNumString + " undocumented type 0x%02X (\"%s\")  (Keil?)\n", recordType, nameString);
         }
 #endif // NO_KEIL
-        ushort recordLength;
+          ushort recordLength;
         uhbyte unknownData[recordLength-1];
-        checksumByte(startof(recordType), recordLength);
+        checksumByte(startof(this), recordLength);
     } unimplementedRecord <name=(nameString + " (unimplemented)")>;
 }
 
@@ -214,18 +157,21 @@ void skipUnrecognizedRecord()
 {
     struct {
         local byte checksumValid = false;
-        local string nameString; 
+        local string nameString;
+        local string recordNumString = Str("Record %4d:", recordNumber);
+
+        recordNumString += Str("%.*s", Min(1, 12 - Strlen(recordNumString)), " ");
         td_recType recordType;
         nameString = EnumToString(recordType);
 #ifndef NO_KEIL
         if (! (recordType & 1))
 #endif // NO_KEIL
         {
-            Printf("Record type 0x%02X (\"%s\") unknown, at record %u\n", recordType, nameString, recordNumber);
+            Printf(recordNumString + " unknown type 0x%02X (\"%s\")\n", recordType, nameString);
         }
 #ifndef NO_KEIL
         else {
-            Printf("Record type 0x%02X (\"%s\") unknown (Keil?), at record %u\n", recordType, nameString, recordNumber);
+            Printf(recordNumString + " unknown type 0x%02X (\"%s\") (Keil?)\n", recordType, nameString);
         }
 #endif // NO_KEIL
         ushort recordLength;
@@ -248,13 +194,13 @@ void checksumByte(int64 offset, ushort count) {
     
 int parseAnotherRecord(void)
 {
-    local td_recType tmpRecordType = ReadUByte();
+    currentRecType = ReadUByte();
     //td_recType recordType;
     //udshort         recordLength;
     //local udshort    checksumCount = recordLength + 3;
     recordNumber++;
-    keilFlag = isKeilRecType(tmpRecordType);
-    switch(tmpRecordType)
+    keilFlag = isKeilRecType(currentRecType);
+        switch(currentRecType)
         {
             case rt_Module_HDR:
                 //++lclLibModuleCount;;
@@ -280,11 +226,40 @@ int parseAnotherRecord(void)
                 break;
 #ifndef NO_KEIL
             case rt_Content_Keil:
+                if (function_exists(parseContentKeil))
+                    parseContentKeil();
+                else
+                    skipUnimplementedRecord(currentRecType);
+                break;
+                    
             case rt_Fixup_Keil:
+                if (function_exists(parseFixupKeil))
+                    parseFixupKeil();
+                else
+                    skipUnimplementedRecord(currentRecType);
+                break;
+
             case rt_Segment_DEF:
+                if (function_exists(parseSegmentDEF_keil))
+                    parseSegmentDEFKeil();
+                else
+                    skipUnimplementedRecord(currentRecType);
+                break;
+
             case rt_Public_DEF_keil:
+                if (function_exists(parsePublicDEFKeil))
+                    parsePublicDEFKeil();
+                else
+                    skipUnimplementedRecord(currentRecType);
+                break;
+
             case rt_External_DEF_keil:
-                skipUnimplementedRecord();
+                if (function_exists(parseExternalDEFKeil))
+                    parseExternalDEFKeil();
+                else
+                    skipUnimplementedRecord(currentRecType);
+                break;
+
 
 #endif // NO_KEIL
     
@@ -302,30 +277,20 @@ int parseAnotherRecord(void)
             case rt_Segment_DEF:
             case rt_Debug_Item:
 #endif // NOT_YET              
-            case rt_Content:
-            case rt_Fixup:
-            case rt_Scope_DEF:
-            case rt_Public_DEF:
-            case rt_External_DEF:
-            case rt_LIB_ModLocs:
-            case rt_LIB_ModName:
-            case rt_LIB_DICTNRY:
-                skipUnimplementedRecord();
+            //case rt_Content:
+            //case rt_Fixup:
+            //case rt_Scope_DEF:
+            //case rt_Public_DEF:
+            //case rt_External_DEF:
+            //case rt_LIB_ModLocs:
+            //case rt_LIB_ModName:
+            //case rt_LIB_DICTNRY:
+            default:
+                skipUnimplementedRecord(currentRecType);
                 break;
 
-            default:
-                skipUnrecognizedRecord();
-                //struct {
-                //    ushort recordLength;
-                //    uhbyte unknownData[recordLength];
-                //} data;
-                //break;
-                //Printf(" record type 0x%02x Undocumented, at record %u\n", thisRecordType, recordNumber);
-                ////abortFlag = true;
-                break;       
         } // end switch
     return !FEof();
-
 } // end parseNextRecord
 
 
@@ -455,6 +420,7 @@ void parseSegmentDEFKeil(void)
     //local string tmp;
     //local int ft, strsize, strstart;
     struct {
+        local int segmentCount;
         local byte checksumValid = false;
         local int i;
         //if (FTell() == 0x8476)
@@ -467,6 +433,8 @@ void parseSegmentDEFKeil(void)
         local string lclSegName;
         local td_segID lclSegID;
         do {
+            if (++segmentCount == 2)
+                Printf("@@@ Record %d has multiple segments @@@\n", recordNumber);
             struct {
                 BitfieldDisablePadding();
                 td_segID segID;
@@ -493,11 +461,15 @@ void parseSegmentDEFKeil(void)
                         this.lclSegName != "" ? " " + this.lclSegName : "")
           )
         >;
-
+         
             remainingLength -= sizeof(seg);
         } while (remainingLength >= 9);
+        if (segmentCount > 1)
+            Printf("@@@ Record %d has %d segments @@@\n", recordNumber, segmentCount);
+
         Assert(--remainingLength == 0, Str("%d left-over bytes after last segment, at record %d", remainingLength, recordNumber) );
         checksumByte(startof(recordType), recordLength);
+
     } SegmentDefKeil;
     //lclModuleTable[moduleTableIndex].mdIsOpen = false;
     //BitfieldEnablePadding();
@@ -506,6 +478,7 @@ void parseSegmentDEFKeil(void)
 
 void parseExternalDEFKeil(void) 
 {
+    // Based on parseSegmentDEFKeil, with some guesswork about individual bytes and byte fields
     //local string tmp;
     //local int ft, strsize, strstart;
     struct {
@@ -525,7 +498,7 @@ void parseExternalDEFKeil(void)
                 BitfieldDisablePadding();
                 uhbyte ID_BLK;
                 if (ID_BLK != 2)
-                    Warning("External definition ID_BLK is %u instead of 2", ID_BLK);
+                    Warning("At record %d, file offset %04x, external definition ID_BLK is %u instead of 2", recordNumber, FTell(), ID_BLK);
                 uhbyte EXT_ID;
                 uhbyte SYM_INFO;
                 uhbyte :8;
@@ -553,9 +526,74 @@ void parseExternalDEFKeil(void)
             lclExternName = ext.lclExternName;
             remainingLength -= sizeof(ext);
         } while (remainingLength >= 9);
-        Assert(--remainingLength == 0, Str("%d left-over bytes after last segment, at record %d", remainingLength, recordNumber) );
+        Assert(--remainingLength == 0, Str("%d left-over bytes after last segment, at record %d, offset %04x", remainingLength, recordNumber, FTell()) );
         checksumByte(startof(recordType), recordLength);
     } ExternalDefKeil;
+    //lclModuleTable[moduleTableIndex].mdIsOpen = false;
+    //BitfieldEnablePadding();
+    //ft = FTell();
+}
+
+void parsePublicDEFKeil(void) 
+{
+    // Based on parseSegmentDEFKeil, with some guesswork about individual bytes and byte fields
+    //local string tmp;
+    //local int ft, strsize, strstart;
+    struct {
+        local byte checksumValid = false;
+        local int i;
+        //if (FTell() == 0x8476)
+        //    Printf("Stop here\n");
+        td_recType recordType;
+        ushort recordLength;
+        Assert(recordLength != 0);
+        local int32 remainingLength;
+    //} name <name=(this.nameLength != 0 ? this.segmentName : "<BLANK>")>;
+        remainingLength = recordLength;
+        local string lclExternName;
+        do {
+            struct {
+                BitfieldDisablePadding();
+                uhbyte ID_BLK;
+                if (ID_BLK != 2)
+                    Warning("At record %d, file offset %04x, external definition ID_BLK is %u instead of 2", recordNumber, FTell(), ID_BLK);
+                uhbyte EXT_ID;
+                uhbyte SYM_INFO;
+                uhbyte :8;
+                //lclSegID = segID;
+                //td_segInfo segInfo;
+                //td_segType segType;
+                local string lclExternName;
+                //if (this.segType != SegType_BIT)
+                //    uhbyte :8;
+                //else
+                //    uhbyte bitInfo;
+                BitfieldEnablePadding();
+                BigEndian();
+                //ushort segAddress <format=hex>;
+                //ushort segLength  <format=hex, comment=((this > 9 ? Str("%d decimal", this) : "" ))>;
+                //LittleEndian();
+                uhbyte :8;
+                uhbyte :8;
+                td_countedStr extName;
+                if (extName.strLength != 0)
+                {
+                    lclExternName = Strlen(extName.str.strText) != 0 ? extName.str.strText : "<<?>>";
+                }
+                else {
+                    lclExternName = "";
+                }
+            } ext <
+                name=(
+                    /*"Keil public " + */(parentof(this).lclExternName != "") ?  parentof(this).lclExternName : "<?>")
+               >;
+            LittleEndian();
+            lclExternName = ext.lclExternName;
+            remainingLength -= sizeof(ext);
+        } while (remainingLength >= 9);
+        Assert(--remainingLength == 0, Str("%d left-over bytes after last segment, at record %d", remainingLength, recordNumber) );
+        checksumByte(startof(recordType), recordLength);
+    } PublicDefKeil;
     //lclModuleTable[moduleTableIndex].mdIsOpen = false;
     //BitfieldEnablePadding();
     //ft = FTell();

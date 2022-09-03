@@ -27,7 +27,8 @@ typedef enum <ubyte> {
     rt_LIB_Header       =   0x2c,
     rt_LIB_ModName      =   0x28,
     rt_LIB_ModLocs      =   0x26,
-    rt_LIB_DICTNRY      =   0x2A
+    rt_LIB_DICTNRY      =   0x2A,
+    rt_EndOfFile        =   0xff        // Sentinel value defined by me for end of file
 } RECORDTYPE;
 
 typedef enum <int> {

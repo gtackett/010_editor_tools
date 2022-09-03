@@ -14,36 +14,61 @@
 //
 #ifndef _OMF51_TYPES_BT_
 #define _OMF51_TYPES_BT_
-#include </Users/gtackett/Documents/SweetScape/Include Files/General Purpose/UsefulTypes.1sc>
-typedef ubyte td_ChkSum <format=hex, name="checksum byte">;
+#include <General Purpose/MyTypes.1sc>
+typedef ubyte td_ChkSum 
+                <
+                    format=hex, name="checksum byte",
+                    fgcolor=(
+                        Checksum(CHECKSUM_BYTE, recordByteOffset, checksumCount) == 0
+                            ? cGreen
+                            : cRed
+                      )
+                >;
+
+typedef uxshort td_offset;
+
 typedef enum <ubyte>
-{
-    rt_Module_HDR       =   0x02,
-    rt_Module_END       =   0x04,
-    rt_Content          =   0x06,
+{                                       // MCS 80/85 Relocatable Object Module Formats
+    rt_Module_HDR       =   0x02,       //  Similar up to/including module name, then different
+    rt_Module_END       =   0x04,       //  Differs after record length
+    rt_Content          =   0x06,       //  Identical
 #ifndef NO_KEIL
     rt_Content_Keil     =   0x07,
 #endif
-    rt_Fixup            =   0x08,
+    rt_Fixup            =   0x08,       //  Line Numbers record (similar semantic notions included Debug Item Record 0x12 in OMF51 
+#ifndef NO_KEIL
     rt_Fixup_Keil       =   0x09,
-    rt_Segment_DEF      =   0x0e,
+#endif
+    rt_Segment_DEF      =   0x0e,       //  Value not used, similar semantic notions spread across several record types 
 #ifndef NO_KEIL
     rt_Segment_DEF_Keil =   0x0f,
 #endif
-    rt_Scope_DEF        =   0x10,
-    rt_Debug_Item       =   0x12,
-    rt_Public_DEF       =   0x16,
+    rt_Scope_DEF        =   0x10,       // 10 is Ancestor Record, semantics not similar to any OMF51 record
+    rt_Debug_Item       =   0x12,       // Somewhat similar to Local Symbols record
+    rt_Public_DEF       =   0x16,       // Public Declarations Record, similar but lacks SYM INFO (which has no parallel in MCS 80/85 OMF) 
 #ifndef NO_KEIL
     rt_Public_DEF_keil  =   0x17,
 #endif
-    rt_External_DEF     =   0x18,
+    rt_External_DEF     =   0x18,       // 18 is External Names Record , which includes only name strings, lacking ID BLK, EXT ID, SYM INFO
 #ifndef NO_KEIL
-    rt_External_DEF_keil =   0x19,
+    rt_External_DEF_keil =  0x19,
+    //
+    // In 8080/8085 OMF, 0x22 is a "relocation record". Perhaps Keil's 0x23 is related somehow?
+    // 8080/85. Details must differ, but 0x22 looks like this:
+    //
+    //********************************************    //* REC * RECORD * 1: LO   *   OFFSET  * CHK *    //* TYP * LENGTH * 2: HI   *           * SUM *    //* 22H *        * 3: BOTH *           *     *    //*     *        *         *           *     *    //********************************************    //                         +--REPEATED-+
+    //
+    rt_Unknown0x23      =   0x23,       // Separates 2nd scope def record from Keil content record
 #endif
     rt_LIB_ModLocs      =   0x26,
     rt_LIB_ModName      =   0x28,
     rt_LIB_DICTNRY      =   0x2A,
-    rt_LIB_Header       =   0x2c
+    rt_LIB_Header       =   0x2c,
+#ifndef NO_KEIL
+    rt_Unknown0x72      =   0x72,       // Follows Keil content record and some Keil fixup record from scope def record
+#endif
+
+    rt_EndOfFile        =   0xff        // Sentinel value defined by me for end of file
 } td_recType
     <
         format=hex
@@ -87,14 +112,15 @@ td_recType keilBaseRecType(td_recType n)
     return EnumToString(n) != "" ? n & 0xfe : 0;
 #endif // NO_KEIL
 }
-typedef enum <byte> {
-    False = false,
-    True
-} td_bool;
 
-typedef enum <byte> {
-    No = False,
-    Yes = True
+typedef enum <uhbyte> {
+    boolFalse = false,
+    boolTrue
+} td_boolTrueFalse;
+
+typedef enum <uhbyte> {
+    boolNo = false,
+    boolYes
 } td_boolYesNo;
 
 typedef enum <ubyte> {
@@ -110,7 +136,7 @@ typedef struct {
     ubyte strLength            <format=decimal>; // Valid on interval [0,40];
     if (strLength > 0)
     {
-        Assert( strLength <= 40, Str( "String length %d 40 byte maximum.", strLength));
+        Assert( strLength <= 40, Str( "String length %d exceeds 40 byte maximum.", strLength));
         struct {
             char strText[parentof(this).strLength];
         } str;
@@ -129,13 +155,74 @@ typedef enum <ubyte>  { // 3 bits
     SegType_BIT
 } td_segType <name="Segment type">;
 
+typedef enum <ubyte> { // 3 bits
+    UsageType_CODE = 0,
+    UsageType_XDATA,
+    UsageType_DATA,
+    UsageType_IDATA,
+    UsageType_BIT,
+    UsageType_NUMBER
+} td_usageType;
+
 typedef struct { // 2 bits
     BitfieldDisablePadding();
     ubyte   Bank_0 :1,
             Bank_1 :1,
             Bank_2 :1;
     BitfieldEnablePadding();
-} td_segReg <name="Register bank bitmap"> ;
+} td_regBitmap;
+
+typedef td_regBitmap td_symbolReg <name="Symbol register bank bitmap">;
+typedef td_regBitmap td_segReg <name="Segment register bank bitmap"> ;
+
+typedef enum<byte>
+{
+    procSymbol = 0,
+    varSymbol
+} td_varFlag;
+
+typedef struct {
+    BitfieldDisablepadding();
+    td_usageType    usageType       :3;
+    td_symbolReg    regBankMask     :2;
+    td_boolYesNo    regBankValid    :1  <name=("Register bank mask :" + this == yes ? "Yes" : "No")>;
+    td_varFlag      varFlag         :1  <name=("Symbol type: " + this == 1 ? "Variable" : "Procedure")>;
+    td_boolYesNo    indirectCallOK  :1;
+} td_symbolInfoPublic;
+
+typedef struct {
+    BitfieldDisablepadding();
+    td_usageType    usageType       :3;
+    td_symbolReg    regBankMask     :2;
+    td_boolYesNo    regBankValid    :1; // <name=("Register bank mask :" + this == yes ? "Yes" : "No")>;
+    td_varFlag      varFlag         :1; // <name=("Symbol type: " + this == 1 ? "Variable" : "Procedure")>;
+    td_boolYesNo    indirectCallOK  :1; // <name=(this == 0) ? "" : "(should be 0)")>;
+    BitfieldEnablePadding();
+} td_symbolInfoExtern;
+
+typedef td_symbolInfoExtern td_symbolInfoDebug;
+
+typedef union {
+    td_symbolInfoPublic     public;
+    td_symbolInfoExtern     extern;
+    td_symbolInfoDebug      debug;
+} td_symbolInfo;
+
+
+
+typedef struct {
+    BitfieldDisablePadding();
+    td_usageType    usageType :3;
+    td_symbolReg    procedureRegisterBank;
+    byte            registerBankValid :1;
+    td_varFlag      varFlag:1;
+    if (varFlag == procSymbol)
+        byte        indirect:1;
+    else
+        byte        :1;
+} whatsIt; // BUT WHAT RECORD TYPE IS THIS USED IN???
+
+
 
 typedef enum <ushort> {
     Reloc_ABS   = 0,
@@ -158,6 +245,32 @@ typedef struct {
     td_relocType  RELTYPE:3;
     BitfieldEnablePadding();
 } td_segInfo <name="Segment information">;
+
+typedef byte td_segId 
+    <
+        name=("Segment "
+                + (this == 0) ? "ABS" : Str("0x02X")
+                )
+    >;
+
+typedef enum<byte>
+{
+    blockType_Module = 0,
+    blockType_DO,
+    blockType_PROCEDURE,
+    blocktype_ModuleEnd,
+    blocktype_DOend,
+    blocktype_PROCEDUREend
+} td_scopeBlockType <name="Block type">;
+
+
+typedef enum<byte>
+{
+    defType_localSymbols = 0,
+    defType_publicSymbols,
+    defType_segmentSymbols,
+    defType_lineNumbers
+} td_defType <name="Definitions type">;
 
 //typedef struct {
 //
