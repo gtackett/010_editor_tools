@@ -47,11 +47,11 @@ typedef enum <ubyte>
     rt_Debug_Item       =   0x12,       // Somewhat similar to Local Symbols record
     rt_Public_DEF       =   0x16,       // Public Declarations Record, similar but lacks SYM INFO (which has no parallel in MCS 80/85 OMF) 
 #ifndef NO_KEIL
-    rt_Public_DEF_keil  =   0x17,
+    rt_Public_DEF_Keil  =   0x17,
 #endif
     rt_External_DEF     =   0x18,       // 18 is External Names Record , which includes only name strings, lacking ID BLK, EXT ID, SYM INFO
 #ifndef NO_KEIL
-    rt_External_DEF_keil =  0x19,
+    rt_External_DEF_Keil =  0x19,
     //
     // In 8080/8085 OMF, 0x22 is a "relocation record". Perhaps Keil's 0x23 is related somehow?
     // 8080/85. Details must differ, but 0x22 looks like this:
@@ -61,7 +61,7 @@ typedef enum <ubyte>
     rt_Unknown0x23      =   0x23,       // Separates 2nd scope def record from Keil content record
 #endif
     rt_LIB_ModLocs      =   0x26,
-    rt_LIB_ModName      =   0x28,
+    rt_LIB_ModNames      =   0x28,
     rt_LIB_DICTNRY      =   0x2A,
     rt_LIB_Header       =   0x2c,
 #ifndef NO_KEIL
@@ -88,11 +88,6 @@ typedef enum <ubyte>
 //            )  
     >;
 
-int isKnownRecType(td_recType n)
-{
-    return EnumToString(n) != "";
-}
-
 int isKeilRecType(td_recType n)
 {
 #ifndef NO_KEIL
@@ -103,15 +98,15 @@ int isKeilRecType(td_recType n)
 #endif // NO_KEIL
 }
 
-td_recType keilBaseRecType(td_recType n)
-{
-#ifdef NO_KEIL
-#warning "NO_KEIL is #defined. Replacing calls to keilBaseRecType() with calls to a \"pass-through-or-FALSE\" function."
-    return  EnumToString(n) != "" ? n : 0;
-#else
-    return EnumToString(n) != "" ? n & 0xfe : 0;
-#endif // NO_KEIL
-}
+//td_recType keilBaseRecType(td_recType n)
+//{
+//#ifdef NO_KEIL
+//#warning "NO_KEIL is #defined. Replacing calls to keilBaseRecType() with calls to a \"pass-through-or-FALSE\" function."
+//    return  EnumToString(n) != "" ? n : 0;
+//#else
+//    return EnumToString(n) != "" ? n & 0xfe : 0;
+//#endif // NO_KEIL
+//}
 
 typedef enum <uhbyte> {
     boolFalse = false,
@@ -132,16 +127,23 @@ typedef enum <ubyte> {
 
 typedef ushort td_recLength;
 
+typedef struct (ubyte strLength)
+{
+	Assert( strLength <= 40, Str( "String length %d exceeds OMF51 40 byte maximum.", strLength)); 
+    char strText[strLength];
+    local string str;
+    Strcpy(str, strText);
+} td_str51;
+
 typedef struct {
     ubyte strLength            <format=decimal>; // Valid on interval [0,40];
     if (strLength > 0)
     {
-        Assert( strLength <= 40, Str( "String length %d exceeds 40 byte maximum.", strLength));
-        struct {
-            char strText[parentof(this).strLength];
-        } str;
+        Assert (strLength <= 40, Str("String length %u exceeds maximum 40 bytes", strLength) );
+        td_str51 str(strLength);
     }
 } td_countedStr;
+
 
 typedef enum <ubyte> {
     ABS = 0

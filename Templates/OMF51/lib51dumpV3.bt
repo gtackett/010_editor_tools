@@ -65,9 +65,9 @@ typedef struct {
     checksumCount = recordLength + 3;
     udshort         moduleCount /* <name="uint16"> */;
     struct  {
-        LIBBLKNUM       moduleNamesStartBlock <name="Block in file", comment=(this <= 9 ? "" : Str("%d decimal", this) )>;
-        LIBBYTENUM      moduleNamesByteInBlock  <name="Byte in block", comment=(this <= 9 ? "" : Str("%d decimal", this) )>;
-    } ModuleLoc <name="Module names start",open=true>;
+        LIBBLKNUM       moduleNamesStartBlock;
+        LIBBYTENUM      moduleNamesByteInBlock;
+    } ModuleNamesLoc <name="Location of Library Mdule Names",open=true>;
     BitfieldEnablePadding();
     td_ChkSum    checksum <
         name="Checksum byte",
